@@ -10,11 +10,13 @@ private object Holder {
     var continuation: kotlin.coroutines.Continuation<String>? = null
 }
 
-actual suspend fun openWebLogin(url: String): String = suspendCancellableCoroutine { cont ->
+actual suspend fun openWebLogin(spec: WebLoginSpec): String = suspendCancellableCoroutine { cont ->
     Holder.continuation = cont
     val ctx = AppContextHolder.context
     val intent = Intent(ctx, LoginWebActivity::class.java).apply {
-        putExtra("url", url)
+        putExtra("url", spec.url)
+        putExtra("successHosts", spec.successHosts)
+        putExtra("successCookieName", spec.successCookieName)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
     ctx.startActivity(intent)

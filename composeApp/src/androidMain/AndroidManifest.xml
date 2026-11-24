@@ -37,6 +37,11 @@
             android:theme="@style/Theme.Hebiace" />
 
         <activity
+            android:name=".ui.LearnWebActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Hebiace" />
+
+        <activity
             android:name=".ui.QrScanActivity"
             android:exported="false"
             android:theme="@style/Theme.Hebiace" />

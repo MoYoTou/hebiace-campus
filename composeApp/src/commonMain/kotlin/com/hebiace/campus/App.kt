@@ -35,7 +35,7 @@ import com.hebiace.campus.ui.theme.HebiaceTheme
 fun App() {
     HebiaceTheme {
         var tab by remember { mutableStateOf(0) }
-        val tabs = listOf("课程", "作业", "生活", "我的")
+        val tabs = listOf("课程", "学习", "生活", "我的")
         Scaffold(
             bottomBar = {
                 Surface(color = MaterialTheme.colorScheme.surface) {

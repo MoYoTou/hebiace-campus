@@ -1,6 +1,8 @@
 package com.hebiace.campus.data.xxt
 
 import com.hebiace.campus.data.createHttpClient
+import com.hebiace.campus.data.web.WebLoginSpec
+import com.hebiace.campus.model.CourseEntry
 import com.hebiace.campus.model.Provider
 import com.hebiace.campus.model.Task
 import com.hebiace.campus.model.TaskStatus
@@ -36,6 +38,20 @@ class ChaoxingClient(
         const val BROWSER_UA =
             "Mozilla/5.0 (Linux; Android 14; Pixel 6) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+
+        /** 登录成功后跳转到的域名（用于自动返回判断） */
+        const val SUCCESS_HOSTS =
+            "i.chaoxing.com,mooc1.chaoxing.com,mooc2.chaoxing.com,www.chaoxing.com"
+
+        /** 学习页 WebView 需要注入 Cookie 的域名 */
+        const val COOKIE_HOSTS =
+            "mooc1.chaoxing.com,www.chaoxing.com,i.chaoxing.com,passport2.chaoxing.com"
+
+        fun loginSpec(): WebLoginSpec = WebLoginSpec(
+            url = LOGIN_URL,
+            successHosts = SUCCESS_HOSTS,
+            successCookieName = "_uid,UID",
+        )
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -128,6 +144,22 @@ class ChaoxingClient(
         }.getOrNull() ?: return false
         return text.contains("\"result\":1")
     }
+
+    /** 课程学习页 URL（进入章节/课件） */
+    fun courseUrl(courseId: String, classId: String): String =
+        "https://mooc1.chaoxing.com/mycourse/studentcourse?courseId=$courseId&clazzid=$classId&cpi=0"
+
+    /** 课程列表（供「学习」页展示，点击进入学习） */
+    suspend fun fetchCourseEntries(): List<CourseEntry> =
+        fetchCourses().map {
+            CourseEntry(
+                provider = Provider.CHAOXING,
+                name = it.name,
+                courseId = it.courseId,
+                classId = it.classId,
+                url = courseUrl(it.courseId, it.classId),
+            )
+        }
 }
 
 /** 学习通 H5 列表页正则解析（替代 Jsoup，跨平台可用） */

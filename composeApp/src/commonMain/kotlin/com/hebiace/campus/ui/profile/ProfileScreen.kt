@@ -26,10 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hebiace.campus.AppState
+import com.hebiace.campus.CampusRepo
 import com.hebiace.campus.data.jw.ZhengfangClient
-import com.hebiace.campus.data.web.openWebLogin
-import com.hebiace.campus.data.xxt.ChaoxingClient
-import com.hebiace.campus.data.ykt.YuketangClient
 import kotlinx.coroutines.launch
 
 @Composable
@@ -112,12 +110,9 @@ private fun ChaoxingSection() {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = {
                 scope.launch {
-                    val cookie = openWebLogin(ChaoxingClient.LOGIN_URL)
-                    if (cookie.isNotBlank()) {
-                        AppState.saveChaoxingCookie(cookie)
-                        loggedIn = true
-                        msg = "登录成功"
-                    } else msg = "已取消"
+                    val ok = CampusRepo.loginChaoxing()
+                    loggedIn = ok
+                    msg = if (ok) "登录成功" else "已取消"
                 }
             }) { Text("登录") }
             OutlinedButton(onClick = {
@@ -145,12 +140,9 @@ private fun YuketangSection() {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = {
                 scope.launch {
-                    val cookie = openWebLogin(YuketangClient.loginUrl())
-                    if (cookie.isNotBlank()) {
-                        AppState.saveYktCookie(cookie)
-                        loggedIn = true
-                        msg = "登录成功"
-                    } else msg = "已取消"
+                    val ok = CampusRepo.loginYuketang()
+                    loggedIn = ok
+                    msg = if (ok) "登录成功" else "已取消"
                 }
             }) { Text("登录") }
             OutlinedButton(onClick = {

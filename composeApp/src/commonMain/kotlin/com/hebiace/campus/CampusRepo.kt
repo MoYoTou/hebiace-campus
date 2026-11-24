@@ -3,9 +3,11 @@ package com.hebiace.campus
 import com.hebiace.campus.data.jw.ZhengfangClient
 import com.hebiace.campus.data.qzxy.QzxyClient
 import com.hebiace.campus.data.ujing.UjingClient
+import com.hebiace.campus.data.web.openWebLogin
 import com.hebiace.campus.data.xxt.ChaoxingClient
 import com.hebiace.campus.data.ykt.YuketangClient
 import com.hebiace.campus.model.Course
+import com.hebiace.campus.model.CourseEntry
 import com.hebiace.campus.model.QzxySession
 import com.hebiace.campus.model.Task
 
@@ -42,6 +44,36 @@ object CampusRepo {
         val xxt = runCatching { fetchChaoxingTasks() }.getOrDefault(emptyList())
         val ykt = runCatching { fetchYuketangTasks() }.getOrDefault(emptyList())
         return (xxt + ykt).sortedBy { if (it.endTime <= 0) Long.MAX_VALUE else it.endTime }
+    }
+
+    /** 学习通课程列表（进入学习） */
+    suspend fun fetchChaoxingCourses(): List<CourseEntry> {
+        val cookie = AppState.chaoxingCookie()
+        if (cookie.isEmpty()) return emptyList()
+        return ChaoxingClient(cookie).fetchCourseEntries()
+    }
+
+    /** 雨课堂课程列表（进入学习） */
+    suspend fun fetchYuketangCourses(): List<CourseEntry> {
+        val cookie = AppState.yktCookie()
+        if (cookie.isEmpty()) return emptyList()
+        return YuketangClient(cookie).fetchCourseEntries()
+    }
+
+    /** 学习通登录（WebView，登录成功自动返回），成功保存 Cookie */
+    suspend fun loginChaoxing(): Boolean {
+        val cookie = openWebLogin(ChaoxingClient.loginSpec())
+        if (cookie.isBlank()) return false
+        AppState.saveChaoxingCookie(cookie)
+        return true
+    }
+
+    /** 雨课堂登录（WebView，登录成功自动返回），成功保存 Cookie */
+    suspend fun loginYuketang(): Boolean {
+        val cookie = openWebLogin(YuketangClient.loginSpec())
+        if (cookie.isBlank()) return false
+        AppState.saveYktCookie(cookie)
+        return true
     }
 
     fun qzxySession(): QzxySession? {

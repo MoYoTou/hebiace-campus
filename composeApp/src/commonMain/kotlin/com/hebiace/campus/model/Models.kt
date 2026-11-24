@@ -63,6 +63,16 @@ data class Task(
     val provider: Provider = Provider.CHAOXING,
 )
 
+/** 课程入口（学习通/雨课堂），点击后进入对应平台学习页 */
+@Serializable
+data class CourseEntry(
+    val provider: Provider = Provider.CHAOXING,
+    val name: String = "",
+    val courseId: String = "",
+    val classId: String = "",
+    val url: String = "",
+)
+
 // ============================================================
 // 趣智校园（洗浴）
 // ============================================================

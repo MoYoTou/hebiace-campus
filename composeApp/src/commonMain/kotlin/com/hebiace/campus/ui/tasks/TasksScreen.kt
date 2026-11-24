@@ -9,17 +9,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,173 +31,186 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.hebiace.campus.AppState
 import com.hebiace.campus.CampusRepo
+import com.hebiace.campus.data.web.openWebLearn
+import com.hebiace.campus.model.CourseEntry
 import com.hebiace.campus.model.Provider
-import com.hebiace.campus.model.Task
-import com.hebiace.campus.model.TaskStatus
-import com.hebiace.campus.model.TaskType
-import com.hebiace.campus.util.TimeFmt
 import kotlinx.coroutines.launch
-
-private val STATUS_TABS = listOf(
-    "未完成" to TaskStatus.TODO,
-    "待批阅" to TaskStatus.SUBMITTED,
-    "已完成" to TaskStatus.GRADED,
-    "已过期" to TaskStatus.EXPIRED,
-)
 
 @Composable
 fun TasksScreen() {
-    var tasks by remember { mutableStateOf<List<Task>>(emptyList()) }
-    var loading by remember { mutableStateOf(false) }
-    var filter by remember { mutableStateOf(TaskStatus.TODO) }
-    var error by remember { mutableStateOf<String?>(null) }
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text("学习", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Medium)
+            Text(
+                "点击课程进入学习 · 学习通 / 雨课堂",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        LazyColumn(
+            Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item {
+                StudySection(
+                    title = "学习通",
+                    loggedInInitially = AppState.chaoxingCookie().isNotEmpty(),
+                    onLogin = { CampusRepo.loginChaoxing() },
+                    onLogout = { AppState.saveChaoxingCookie("") },
+                    onFetch = { CampusRepo.fetchChaoxingCourses() },
+                    cookieHosts = "mooc1.chaoxing.com,www.chaoxing.com,i.chaoxing.com,passport2.chaoxing.com",
+                )
+            }
+            item {
+                StudySection(
+                    title = "雨课堂",
+                    loggedInInitially = AppState.yktCookie().isNotEmpty(),
+                    onLogin = { CampusRepo.loginYuketang() },
+                    onLogout = { AppState.saveYktCookie("") },
+                    onFetch = { CampusRepo.fetchYuketangCourses() },
+                    cookieHosts = "www.yuketang.cn",
+                )
+            }
+            item { Spacer(Modifier.height(8.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun StudySection(
+    title: String,
+    loggedInInitially: Boolean,
+    onLogin: suspend () -> Boolean,
+    onLogout: () -> Unit,
+    onFetch: suspend () -> List<CourseEntry>,
+    cookieHosts: String,
+) {
     val scope = rememberCoroutineScope()
+    var loggedIn by remember { mutableStateOf(loggedInInitially) }
+    var courses by remember { mutableStateOf<List<CourseEntry>>(emptyList()) }
+    var loading by remember { mutableStateOf(false) }
+    var msg by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
         scope.launch {
             loading = true
-            error = null
+            msg = null
             try {
-                tasks = CampusRepo.fetchAllTasks()
-                if (tasks.isEmpty()) error = "请先在「我的」里登录学习通 / 雨课堂"
+                courses = onFetch()
+                if (courses.isEmpty()) msg = "暂无课程，点击「刷新」同步"
             } catch (e: Exception) {
-                error = e.message ?: "抓取失败"
+                msg = e.message ?: "加载失败"
             } finally {
                 loading = false
             }
         }
     }
 
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("作业", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Medium)
+    // 已登录后自动加载课程（含首次进入与登录完成后）
+    LaunchedEffect(loggedIn) {
+        if (loggedIn && courses.isEmpty()) refresh()
+    }
+
+    Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    "学习通 + 雨课堂 · ${tasks.size} 条",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    if (loggedIn) "已登录" else "未登录",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (loggedIn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .background(
+                            (if (loggedIn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.12f),
+                            RoundedCornerShape(6.dp),
+                        )
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
                 )
-            }
-            Button(onClick = { refresh() }, enabled = !loading) {
-                Text(if (loading) "抓取中…" else "刷新")
-            }
-        }
-
-        // 状态筛选
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            STATUS_TABS.forEach { (label, status) ->
-                val selected = status == filter
-                val count = tasks.count { it.status == status }
-                Surface(
-                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.clickable { filter = status },
-                ) {
-                    Text(
-                        "$label $count",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        color = if (selected) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        }
-
-        if (error != null) {
-            Text(error!!, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
-        }
-
-        val filtered = tasks.filter { it.status == filter }
-        LazyColumn(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (filtered.isEmpty() && !loading) {
-                item {
-                    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        Text("暂无记录", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.weight(1f))
+                if (loggedIn) {
+                    OutlinedButton(onClick = { refresh() }, enabled = !loading) {
+                        Text(if (loading) "加载中…" else "刷新")
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedButton(onClick = {
+                        onLogout()
+                        loggedIn = false
+                        courses = emptyList()
+                        msg = null
+                    }) { Text("退出") }
+                } else {
+                    Button(onClick = {
+                        scope.launch {
+                            loading = true
+                            msg = null
+                            val ok = onLogin()
+                            loggedIn = ok
+                            loading = false
+                            if (!ok) msg = "登录未完成"
+                        }
+                    }, enabled = !loading) {
+                        Text(if (loading) "登录中…" else "登录")
                     }
                 }
             }
-            items(filtered) { t -> TaskCard(t) }
-        }
-    }
-}
 
-@Composable
-private fun TaskCard(t: Task) {
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            msg?.let {
                 Text(
-                    t.courseName,
+                    it,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
                 )
-                Spacer(Modifier.weight(1f))
-                ProviderBadge(t.provider)
-                if (t.type == TaskType.EXAM) {
-                    Text(
-                        "考试",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.padding(start = 6.dp),
+            }
+
+            if (loggedIn) {
+                Spacer(Modifier.height(12.dp))
+                when {
+                    loading && courses.isEmpty() -> Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                    ) { CircularProgressIndicator() }
+                    courses.isEmpty() -> Text(
+                        "暂无课程，点击「刷新」同步课程列表",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    else -> courses.forEach { c -> CourseCard(c, cookieHosts) }
                 }
             }
-            Spacer(Modifier.padding(top = 4.dp))
-            Text(t.title, fontWeight = FontWeight.Medium)
-            if (t.grade.isNotEmpty()) {
-                Text("得分 ${t.grade}", style = MaterialTheme.typography.bodySmall)
-            }
-            Spacer(Modifier.padding(top = 6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val remain = t.endTime - kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
-                Text(
-                    if (t.status == TaskStatus.TODO) "剩余 ${TimeFmt.remainText(t.endTime)}"
-                    else t.statusText.ifEmpty { statusLabel(t.status) },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (t.status == TaskStatus.TODO && remain in 1L..(24L * 60L * 60L * 1000L)) {
-                        MaterialTheme.colorScheme.error
-                    } else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
     }
 }
 
 @Composable
-private fun ProviderBadge(p: Provider) {
-    val label = when (p) {
-        Provider.CHAOXING -> "学习通"
-        Provider.YUKETANG -> "雨课堂"
-        Provider.MANUAL -> "手动"
+private fun CourseCard(c: CourseEntry, cookieHosts: String) {
+    val cookie = when (c.provider) {
+        Provider.CHAOXING -> AppState.chaoxingCookie()
+        Provider.YUKETANG -> AppState.yktCookie()
+        Provider.MANUAL -> ""
     }
-    val color = when (p) {
-        Provider.CHAOXING -> MaterialTheme.colorScheme.secondary
-        Provider.YUKETANG -> MaterialTheme.colorScheme.primary
-        Provider.MANUAL -> MaterialTheme.colorScheme.onSurfaceVariant
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .clickable { openWebLearn(c.url, cookie, c.name, cookieHosts) },
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(c.name, fontWeight = FontWeight.Medium)
+                Text(
+                    "点击进入学习",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text("进入 ›", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+        }
     }
-    Text(
-        label,
-        style = MaterialTheme.typography.labelSmall,
-        color = color,
-        modifier = Modifier.background(color.copy(alpha = 0.12f), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
-    )
-}
-
-private fun statusLabel(s: TaskStatus): String = when (s) {
-    TaskStatus.TODO -> "未完成"
-    TaskStatus.EXPIRED -> "已过期"
-    TaskStatus.SUBMITTED -> "待批阅"
-    TaskStatus.GRADED -> "已完成"
 }

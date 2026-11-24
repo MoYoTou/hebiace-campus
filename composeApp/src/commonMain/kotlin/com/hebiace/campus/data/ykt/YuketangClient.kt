@@ -1,6 +1,8 @@
 package com.hebiace.campus.data.ykt
 
 import com.hebiace.campus.data.createHttpClient
+import com.hebiace.campus.data.web.WebLoginSpec
+import com.hebiace.campus.model.CourseEntry
 import com.hebiace.campus.model.Provider
 import com.hebiace.campus.model.Task
 import com.hebiace.campus.model.TaskStatus
@@ -38,6 +40,12 @@ class YuketangClient(
                 "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 
         fun loginUrl(h: String = DEFAULT_HOST): String = "https://$h/web"
+
+        fun loginSpec(h: String = DEFAULT_HOST): WebLoginSpec = WebLoginSpec(
+            url = loginUrl(h),
+            successHosts = "",
+            successCookieName = "sessionid",
+        )
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -87,7 +95,7 @@ class YuketangClient(
 
     suspend fun testLogin(): Boolean = fetchUser() != null
 
-    private data class Course(val classroomId: String, val name: String)
+    data class Course(val classroomId: String, val name: String)
 
     private suspend fun fetchClassEnd(classroomId: String): Long {
         val obj = runCatching { toJson(get("/v2/api/web/classrooms/$classroomId?role=5")) }.getOrNull()
@@ -103,7 +111,7 @@ class YuketangClient(
         return obj["data"]?.jsonObject?.get("is_assessed")?.jsonPrimitive?.contentOrNull == "true"
     }
 
-    private suspend fun fetchCourses(): List<Course> {
+    suspend fun fetchCourses(): List<Course> {
         val obj = runCatching { toJson(get("/v2/api/web/courses/list?identity=2")) }.getOrNull()
             ?: return emptyList()
         val list = obj["data"]?.jsonObject?.get("list")?.jsonArray ?: return emptyList()
@@ -118,6 +126,21 @@ class YuketangClient(
         }
         return out
     }
+
+    /** 课程学习页 URL */
+    fun courseUrl(classroomId: String): String = "https://$host/v2/web/studentLog/$classroomId"
+
+    /** 课程列表（供「学习」页展示，点击进入学习） */
+    suspend fun fetchCourseEntries(): List<CourseEntry> =
+        fetchCourses().map {
+            CourseEntry(
+                provider = Provider.YUKETANG,
+                name = it.name,
+                courseId = it.classroomId,
+                classId = it.classroomId,
+                url = courseUrl(it.classroomId),
+            )
+        }
 
     /** 抓全部课程的作业+习题 */
     suspend fun fetchAll(): List<Task> {
